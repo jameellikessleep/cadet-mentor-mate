@@ -215,6 +215,8 @@ function LessonPage() {
           .print-area { width: 100% !important; }
         }
       `}</style>
+
+      <LessonChat lesson={lesson} />
     </div>
   );
 }
