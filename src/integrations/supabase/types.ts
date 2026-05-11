@@ -14,7 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      shared_lessons: {
+        Row: {
+          created_at: string
+          id: string
+          lesson: Json
+          title: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          lesson: Json
+          title?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          lesson?: Json
+          title?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
