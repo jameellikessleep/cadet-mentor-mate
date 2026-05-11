@@ -5,7 +5,10 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { broadcastSlide, useStoredLesson } from "@/lib/lesson-sync";
 import { SlideView } from "@/components/SlideView";
-import { ChevronLeft, ChevronRight, Monitor, FileDown } from "lucide-react";
+import { LessonChat } from "@/components/LessonChat";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+import { ChevronLeft, ChevronRight, Monitor, FileDown, Share2, Mail } from "lucide-react";
 
 export const Route = createFileRoute("/lesson")({
   component: LessonPage,
@@ -15,6 +18,55 @@ export const Route = createFileRoute("/lesson")({
 function LessonPage() {
   const stored = useStoredLesson();
   const [idx, setIdx] = useState(0);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+
+  async function createShareLink() {
+    if (!stored) return null;
+    if (shareUrl) return shareUrl;
+    setSharing(true);
+    try {
+      const { data, error } = await supabase
+        .from("shared_lessons")
+        .insert({ lesson: stored.lesson as any, title: stored.lesson.title })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const url = `${window.location.origin}/shared/${data.id}`;
+      setShareUrl(url);
+      return url;
+    } catch (e) {
+      toast.error("Could not create share link");
+      return null;
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function onShare() {
+    const url = await createShareLink();
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Share link copied", { description: url });
+    } catch {
+      toast.success("Share link ready", { description: url });
+    }
+  }
+
+  async function onEmail() {
+    if (!stored) return;
+    const url = await createShareLink();
+    if (!url) return;
+    const subject = encodeURIComponent(`ACF Lesson: ${stored.lesson.title}`);
+    const body = encodeURIComponent(
+      `Hi,\n\nHere is the cadet lesson "${stored.lesson.title}".\n\n` +
+      `Open the slides, lesson plan and built-in AI assistant here:\n${url}\n\n` +
+      `Aim: ${stored.lesson.aim}\n\n` +
+      `The link includes the lesson assistant chatbot — anyone viewing can ask it questions about the lesson.\n`
+    );
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  }
 
   useEffect(() => {
     if (stored) broadcastSlide({ lessonId: stored.id, slideIndex: idx });
@@ -51,8 +103,14 @@ function LessonPage() {
             <Link to="/" className="text-xs uppercase tracking-widest text-muted-foreground hover:text-primary">← New lesson</Link>
             <h1 className="text-lg font-bold">{lesson.title}</h1>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={printPlan}><FileDown className="w-4 h-4 mr-2" />Print plan</Button>
+            <Button variant="outline" size="sm" onClick={onShare} disabled={sharing}>
+              <Share2 className="w-4 h-4 mr-2" />{sharing ? "Sharing…" : "Share link"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={onEmail} disabled={sharing}>
+              <Mail className="w-4 h-4 mr-2" />Email
+            </Button>
             <Button onClick={openAudience} size="sm"><Monitor className="w-4 h-4 mr-2" />Open audience window</Button>
           </div>
         </div>
@@ -157,6 +215,8 @@ function LessonPage() {
           .print-area { width: 100% !important; }
         }
       `}</style>
+
+      <LessonChat lesson={lesson} />
     </div>
   );
 }
